@@ -23,6 +23,20 @@
 [![Status](https://img.shields.io/badge/Status-Beta-orange.svg)]()
 [![SafarNow Innovation](https://img.shields.io/badge/SafarNow-Innovation-blue.svg)](https://safarnow.in/)
 
+## 📖 Table of Contents
+
+- [Why DevSnapshot?](#-why-devsnapshot)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start-choose-your-os)
+- [Usage (Create, Inspect, Start)](#-usage)
+- [Multi-Language Support (Polyglot)](#-polyglot--wizard-mode)
+- [Security (EnvGuard)](#-envguard-secrets-management)
+- [Supported Environments](#-supported-environments)
+- [How it Works](#-how-it-works)
+- [Contributing](#-contributing)
+
+---
+
 DevSnapshot is a tiny, portable, **open-source** tool that works on **Windows, macOS, and Linux**. It makes onboarding as simple as "download + run". Instead of telling contributors to "install dependencies" and hope they match, you share a single `.devsnap` file.
 
 **No heavy VMs. No account setup. Just code.**
@@ -222,6 +236,26 @@ Never accidentally leak API keys again. DevSnapshot automatically scans your cod
 | **Polyglot**           | _Mixed_            | ✨ **New**  | Supports **Node + Python + Go** in the same repo                 |
 
 > **Note**: Sherlock Mode is currently in a **Testing Phase**. While it often works like magic, always verify the generated `.devpack` for complex projects.
+
+---
+
+---
+
+## 🧩 How it Works
+
+DevSnapshot isn't magic—it's just smart archiving.
+
+1.  **Analysis (The "Brain")**:
+    - It scans your code to identify languages, frameworks, and dependencies.
+    - It ignores heavy folders like `node_modules`, `.venv`, or `target` to keep the file small (kB/MBs, not GBs).
+2.  **Snapshotting**:
+    - It bundles your source code + a `snapshot.json` metadata file into a compressed `.devsnap` archive.
+    - It generates a `dependencies.devpack` (a lockfile of lockfiles) to ensure identical versions.
+3.  **Sandboxing**:
+    - When you run `start`, it unpacks into a `.devsnap_sandbox` folder.
+    - It _reconstructs_ the environment by extracting code and freshly installing dependencies using the native package manager (npm, pip, go, cargo).
+
+This ensures **Zero Pollution** on your main machine and **100% Reproducibility**.
 
 ---
 
