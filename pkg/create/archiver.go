@@ -57,6 +57,12 @@ func CreateArchive(rootDir string, files []string, meta metadata.SnapshotMetadat
 }
 
 func addFileToTar(tw *tar.Writer, rootDir, filePath string) error {
+	// SECURITY: Never pack .env files
+	if filepath.Base(filePath) == ".env" {
+		fmt.Printf("   ⚠️  Skipping sensitive file: %s\n", filePath)
+		return nil
+	}
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
