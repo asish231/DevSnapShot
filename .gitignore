@@ -1,1 +1,6 @@
 examples
+ts-test
+php-test
+java-test
+rust-test
+env-test

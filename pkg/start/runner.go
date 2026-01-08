@@ -111,6 +111,13 @@ func checkRuntime(envType string) bool {
 		cmd = exec.Command("node", "-v")
 	case "python":
 		cmd = exec.Command("python", "--version")
+	case "rust":
+		cmd = exec.Command("cargo", "--version")
+	case "java":
+		// Check for Maven as it's the primary tool we use
+		cmd = exec.Command("mvn", "-version")
+	case "php":
+		cmd = exec.Command("php", "-v")
 	default:
 		return true // Unknown types assumed present or generic
 	}
@@ -149,17 +156,16 @@ func installFromDevpack(dir, filename string, manualMode bool) error {
 		return fmt.Errorf("failed to parse devpack: %w", err)
 	}
 
-	if len(pack.Dependencies) == 0 {
-		return nil
-	}
-
 	// Branch based on type
 	if pack.Type == "go" {
 		return installGoDeps(dir, pack.Dependencies, manualMode)
-	} else if pack.Type == "node" || pack.Type == "angular" {
+	} else if strings.HasPrefix(pack.Type, "node") || pack.Type == "angular" { // Handle "node (TypeScript)"
 		return installNodeDeps(dir, pack.Dependencies, manualMode)
 	} else if pack.Type == "python" {
 		return installPythonDeps(dir, pack.Dependencies, manualMode)
+	} else if pack.Type == "rust" || pack.Type == "java" || pack.Type == "php" {
+		fmt.Printf("   📦 %s dependencies are handled by the build tool (cargo/mvn/composer).\n", pack.Type)
+		return nil
 	}
 
 	return nil

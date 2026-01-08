@@ -74,6 +74,29 @@ func DetectProject(root string) ([]metadata.EnvironmentConfig, metadata.Lifecycl
 			Setup:   []string{"npm install"},
 			Run:     "npm start",
 		}
+		// TypeScript Enhancement
+		if exists(filepath.Join(root, "tsconfig.json")) {
+			env.Type = "node (TypeScript)"
+			// If build script exists, we might want to run it, but 'npm start' is safer default.
+		}
+		envs = append(envs, env)
+	}
+
+	// 3. Check for PHP (composer.json)
+	if exists(filepath.Join(root, "composer.json")) {
+		env := metadata.EnvironmentConfig{
+			Type:    "php",
+			Version: ">=8.0",
+			Setup:   []string{"composer install"},
+			Run:     "php -S localhost:8000", // Default built-in server
+		}
+		// Try to find an entry point
+		if exists(filepath.Join(root, "public/index.php")) {
+			env.Run = "php -S localhost:8000 -t public"
+		} else if exists(filepath.Join(root, "artisan")) {
+			// Laravel
+			env.Run = "php artisan serve"
+		}
 		envs = append(envs, env)
 	}
 
@@ -88,6 +111,38 @@ func DetectProject(root string) ([]metadata.EnvironmentConfig, metadata.Lifecycl
 			env.Version = v
 		} else {
 			env.Version = "1.21"
+		}
+		envs = append(envs, env)
+	}
+
+	// 4. Check for Rust (Cargo.toml)
+	if exists(filepath.Join(root, "Cargo.toml")) {
+		env := metadata.EnvironmentConfig{
+			Type:    "rust",
+			Version: "1.70.0", // Safe default
+			Setup:   []string{"cargo build"},
+			Run:     "cargo run",
+		}
+		envs = append(envs, env)
+	}
+
+	// 5. Check for Java (pom.xml - Maven)
+	if exists(filepath.Join(root, "pom.xml")) {
+		env := metadata.EnvironmentConfig{
+			Type:    "java",
+			Version: "17",
+			Setup:   []string{"mvn clean install"},
+		}
+		// Smart heuristic for run command
+		if exists(filepath.Join(root, "src/main/resources/application.properties")) || exists(filepath.Join(root, "src/main/resources/application.yml")) {
+			// Likely Spring Boot
+			env.Run = "mvn spring-boot:run"
+		} else {
+			// Fallback: Try to find a produced JAR (heuristically assuming target/app.jar or java -jar)
+			// But since we can't know the jar name before build, "java -jar target/*.jar" is tricky in raw shell without wildcard expansion support in 'execute'.
+			// Safest default is to let user define it or use a standard convention.
+			// Let's assume standard executable jar or allow manual override.
+			env.Run = "java -jar target/app.jar"
 		}
 		envs = append(envs, env)
 	}
