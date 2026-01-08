@@ -23,7 +23,7 @@
 [![Status](https://img.shields.io/badge/Status-Beta-orange.svg)]()
 [![SafarNow Innovation](https://img.shields.io/badge/SafarNow-Innovation-blue.svg)](https://safarnow.in/)
 
-DevSnapshot is a tiny, portable, **open-source** tool that makes onboarding as simple as "download + run". Instead of telling contributors to "install dependencies" and hope they match, you share a single `.devsnap` file.
+DevSnapshot is a tiny, portable, **open-source** tool that works on **Windows, macOS, and Linux**. It makes onboarding as simple as "download + run". Instead of telling contributors to "install dependencies" and hope they match, you share a single `.devsnap` file.
 
 **No heavy VMs. No account setup. Just code.**
 
@@ -31,6 +31,7 @@ DevSnapshot is a tiny, portable, **open-source** tool that makes onboarding as s
 
 ## 🚀 Why DevSnapshot?
 
+- **Cross-Platform**: Runs natively on Windows, Mac (Intel/M1), and Linux.
 - **Zero-Config Onboarding**: `devsnap start my-repo.devsnap` and you're coding in seconds.
 - **Sherlock Detection**: Automatically detects project type (Node, Python, Go) even if manifests like `package.json` are missing.
 - **Reproducible Bug Reports**: Attach a snapshot to a GitHub issue. Maintainers see exactly what you see.
@@ -40,7 +41,7 @@ DevSnapshot is a tiny, portable, **open-source** tool that makes onboarding as s
 
 ## 📦 Installation
 
-DevSnapshot is a single `.exe` file. Run it from anywhere.
+DevSnapshot is a single binary file. Run it from anywhere.
 
 ### 1. Build from Source
 
