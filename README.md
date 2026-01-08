@@ -75,6 +75,43 @@ Run this in PowerShell to access `devsnap` from any folder:
 
 ---
 
+---
+
+## 🏁 Quick Start: Choose Your OS
+
+Since this is a standalone binary (no installation needed), how you run it depends on your OS:
+
+### 🪟 Windows
+
+1. Open **PowerShell** in the folder with `devsnap.exe`.
+2. Run with `.\`:
+
+```powershell
+.\devsnap.exe create
+```
+
+### 🍎 Mac (macOS)
+
+1. Open **Terminal**.
+2. Make it executable first: `chmod +x devsnap-mac-arm64`
+3. Run with `./`:
+
+```bash
+./devsnap-mac-arm64 create
+```
+
+### 🐧 Linux
+
+1. Open **Terminal**.
+2. Make it executable: `chmod +x devsnap-linux`
+3. Run with `./`:
+
+```bash
+./devsnap-linux create
+```
+
+---
+
 ## 🛠️ Usage
 
 ### 1. Create a Snapshot (`create`)
