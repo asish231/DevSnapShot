@@ -13,12 +13,11 @@ import (
 )
 
 // DetectProject inspects the files and determins the environment configuration
-func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleCommands, string, []string) {
+func DetectProject(root string) ([]metadata.EnvironmentConfig, metadata.LifecycleCommands, string, []string) {
 	// Defaults
-	env := metadata.EnvironmentConfig{Type: "generic"}
-	cmds := metadata.LifecycleCommands{}
+	var envs []metadata.EnvironmentConfig
+	cmds := metadata.LifecycleCommands{} // Kept for legacy/global or final override? Can stay empty.
 	name := filepath.Base(root)
-	var requiredVars []string
 
 	// Global Scan for Code Files (for Env Guard & Sherlock)
 	var codeFiles []string
@@ -38,142 +37,201 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 		}
 		return nil
 	})
-	requiredVars = removeDuplicates(scanForEnvVars(codeFiles))
+
+	// Env Guard
+	requiredVars := removeDuplicates(scanForEnvVars(codeFiles))
 
 	// 1. Check for Angular
 	if exists(filepath.Join(root, "angular.json")) {
-		env.Type = "angular"
-		env.Version = ">=14.0.0" // Default assumption, improved by Sherlock
-		cmds.Setup = []string{"npm install"}
-		cmds.Run = "npm start"
-		cmds.Test = "npm test"
-
-		// Attempt to refine version if package.json exists
+		env := metadata.EnvironmentConfig{
+			Type:    "angular",
+			Version: ">=14.0.0",
+			Setup:   []string{"npm install"},
+			Run:     "npm start",
+		}
 		if v := resolveNodeVersion(root, "@angular/core"); v != "" {
 			env.Version = v
 		}
-		return env, cmds, name, requiredVars
+		envs = append(envs, env)
 	}
 
-	// 2. Check for Node.js (package.json)
-	if exists(filepath.Join(root, "package.json")) {
-		env.Type = "node"
-		env.Version = ">=18.0.0"
-		cmds.Setup = []string{"npm install"}
-		cmds.Run = "npm start"
-		cmds.Test = "npm test"
-		return env, cmds, name, requiredVars
+	// 2. Check for Node.js (package.json) - Only if not Angular (usually mutually exclusive but can coexist)
+	// If angular.json exists, package.json definitely exists. We might not want to double detect.
+	// Simple rule: Angular IMPLIES Node. If we have Angular, skip generic Node check?
+	// Or maybe just let them coexist? Let's treat them as distinct for now, but usually they share package.json.
+	// If Angular detected, we skip generic Node to avoid duplicate "npm install".
+	alreadyNode := false
+	for _, e := range envs {
+		if e.Type == "angular" {
+			alreadyNode = true
+		}
+	}
+
+	if !alreadyNode && exists(filepath.Join(root, "package.json")) {
+		env := metadata.EnvironmentConfig{
+			Type:    "node",
+			Version: ">=18.0.0",
+			Setup:   []string{"npm install"},
+			Run:     "npm start",
+		}
+		envs = append(envs, env)
 	}
 
 	// 3. Check for Go (go.mod)
 	if exists(filepath.Join(root, "go.mod")) {
-		env.Type = "go"
-		// Parse go.mod for version
+		env := metadata.EnvironmentConfig{
+			Type:  "go",
+			Setup: []string{"go mod download"},
+			Run:   "go run .",
+		}
 		if v := resolveGoModVersion(root); v != "" {
 			env.Version = v
 		} else {
 			env.Version = "1.21"
 		}
-		cmds.Setup = []string{"go mod download"}
-		cmds.Run = "go run ."
-		cmds.Test = "go test ./..."
-		return env, cmds, name, requiredVars
+		envs = append(envs, env)
 	}
 
-	// 4. Sherlock Mode: No manifest files found!
-	// (codeFiles is already populated above)
+	// 4. Sherlock Mode (If no manifests found for a language, try to detect it from code)
+	// We check if we already have detected a language.
+	hasGoEnv := false
+	hasNodeEnv := false
+	hasPyEnv := false
+	for _, e := range envs {
+		if e.Type == "go" {
+			hasGoEnv = true
+		}
+		if e.Type == "node" || e.Type == "angular" {
+			hasNodeEnv = true
+		}
+		if e.Type == "python" {
+			hasPyEnv = true
+		}
+	}
 
-	if len(codeFiles) > 0 {
-		fmt.Printf("   🕵️  Sherlock Mode: Found %d source files. Analyzing...\n", len(codeFiles))
-
-		// Check for Go files first (stronger signal if go.mod is missing but .go files exist)
-		hasGo := false
+	// Sherlock Go
+	if !hasGoEnv {
+		hasGoFile := false
 		for _, f := range codeFiles {
 			if strings.HasSuffix(f, ".go") {
-				hasGo = true
+				hasGoFile = true
 				break
 			}
 		}
 
-		if hasGo {
-			env.Type = "go"
-			env.Version = "1.21" // Safe default
-
-			// Scan imports
-			dependencies := scanForGoImports(codeFiles)
-			if len(dependencies) > 0 {
-				fmt.Printf("      Found %d dependencies (e.g. %s)\n", len(dependencies), summarizeDeps(dependencies))
+		if hasGoFile {
+			env := metadata.EnvironmentConfig{Type: "go", Version: "1.21", Run: "go run ."}
+			deps := scanForGoImports(codeFiles)
+			if len(deps) > 0 {
+				fmt.Printf("   🕵️  Sherlock (Go): Found %d dependencies. Generating devpack...\n", len(deps))
 				depMap := make(map[string]string)
-				for _, dep := range dependencies {
-					v := resolveGoVersion(dep)
-					depMap[dep] = v
-					fmt.Printf("      - %s @ %s\n", dep, v)
+				for _, d := range deps {
+					depMap[d] = resolveGoVersion(d)
 				}
-				createDevpack(root, "go", depMap)
-				cmds.Setup = []string{"#DEVPACK_INSTALL"}
+				createDevpack(root, "go", depMap, "go.devpack")
+				env.Setup = []string{"#DEVPACK:go.devpack"}
 			}
-
-			cmds.Run = "go run ."
-			return env, cmds, name, requiredVars
+			envs = append(envs, env)
 		}
+	}
 
-		// Check for Node/JS files
-		dependencies := scanForNodeImports(codeFiles)
-		if len(dependencies) > 0 {
-			env.Type = "node"
-			env.Version = ">=18.0.0"
-
-			fmt.Printf("   📦 Identified %d unique packages:\n", len(dependencies))
-
-			// Resolve versions
+	// Sherlock Node
+	if !hasNodeEnv {
+		// Only check imports if no package.json found
+		deps := scanForNodeImports(codeFiles)
+		if len(deps) > 0 {
+			env := metadata.EnvironmentConfig{Type: "node", Version: ">=18.0.0"}
+			fmt.Printf("   �️  Sherlock (Node): Found %d dependencies. Generating devpack...\n", len(deps))
 			depMap := make(map[string]string)
-			for _, dep := range dependencies {
-				v := resolveNodeVersion(root, dep)
-				depMap[dep] = v
-				fmt.Printf("      - %s: %s\n", dep, v)
+			for _, d := range deps {
+				depMap[d] = resolveNodeVersion(root, d)
 			}
+			createDevpack(root, "node", depMap, "node.devpack")
+			env.Setup = []string{"#DEVPACK:node.devpack"}
 
-			createDevpack(root, "node", depMap)
-			cmds.Setup = []string{"#DEVPACK_INSTALL"}
-
-			// Guess run command
-			if exists(filepath.Join(root, "vite.config.ts")) || exists(filepath.Join(root, "vite.config.js")) {
-				cmds.Run = "npx vite"
-			} else if exists(filepath.Join(root, "index.js")) {
-				cmds.Run = "node index.js"
+			// Guess run
+			if exists(filepath.Join(root, "index.js")) {
+				env.Run = "node index.js"
 			} else {
-				cmds.Run = "node " + filepath.Base(codeFiles[0])
+				env.Run = "node " + filepath.Base(codeFiles[0])
 			}
-			return env, cmds, name, requiredVars
+
+			envs = append(envs, env)
 		}
 	}
 
-	// 5. Check for Python (Classic detection)
-	if exists(filepath.Join(root, "requirements.txt")) {
-		env.Type = "python"
-		env.Version = ">=3.9"
-		cmds.Setup = []string{"pip install -r requirements.txt"}
-		if exists(filepath.Join(root, "manage.py")) {
-			cmds.Run = "python manage.py runserver"
+	// Sherlock Python (or Manifest Python)
+	// Manifest check: requirements.txt
+	if !hasPyEnv {
+		if exists(filepath.Join(root, "requirements.txt")) {
+			env := metadata.EnvironmentConfig{
+				Type:    "python",
+				Version: ">=3.9",
+				Setup:   []string{"pip install -r requirements.txt"},
+			}
+			if exists(filepath.Join(root, "manage.py")) {
+				env.Run = "python manage.py runserver"
+			} else {
+				env.Run = "python main.py"
+			}
+			envs = append(envs, env)
 		} else {
-			cmds.Run = "python main.py"
+			// Pure Sherlock Python
+			hasPyFile := false
+			for _, f := range codeFiles {
+				if strings.HasSuffix(f, ".py") {
+					hasPyFile = true
+					break
+				}
+			}
+			if hasPyFile {
+				env := metadata.EnvironmentConfig{Type: "python", Version: "3.10"}
+				deps := scanForPythonImports(codeFiles)
+				if len(deps) > 0 {
+					fmt.Printf("   �️  Sherlock (Python): Found %d dependencies. Generating devpack...\n", len(deps))
+					depMap := make(map[string]string)
+					for _, d := range deps {
+						depMap[d] = resolvePythonVersion(d)
+					}
+					createDevpack(root, "python", depMap, "python.devpack")
+					env.Setup = []string{"#DEVPACK:python.devpack"}
+				} else {
+					// No deps detected? Maybe just standard lib.
+					// Don't add install command.
+				}
+
+				// Guess run
+				if exists(filepath.Join(root, "main.py")) {
+					env.Run = "python main.py"
+				} else if exists(filepath.Join(root, "app.py")) {
+					env.Run = "python app.py"
+				} else {
+					env.Run = "python " + filepath.Base(codeFiles[0])
+				}
+
+				envs = append(envs, env)
+			}
 		}
-		return env, cmds, name, requiredVars
 	}
 
-	return env, cmds, name, requiredVars
+	// Fallback if nothing detected
+	if len(envs) == 0 {
+		envs = append(envs, metadata.EnvironmentConfig{Type: "generic"})
+	}
+
+	return envs, cmds, name, requiredVars
 }
 
 // createDevpack writes the .devpack file
-func createDevpack(root, envType string, deps map[string]string) {
+func createDevpack(root, envType string, deps map[string]string, filename string) {
 	content := map[string]interface{}{
 		"type":         envType,
 		"dependencies": deps,
 	}
-	path := filepath.Join(root, "dependencies.devpack")
+	path := filepath.Join(root, filename)
 	bytes, _ := json.MarshalIndent(content, "", "  ")
 	ioutil.WriteFile(path, bytes, 0644)
-	fmt.Println("   📝 Generated dependencies.devpack")
+	fmt.Printf("   📝 Generated %s\n", filename)
 }
 
 // --- Node.js Logic ---
@@ -439,4 +497,65 @@ func removeDuplicates(elements []string) []string {
 		}
 	}
 	return result
+}
+
+// scanForPythonImports finds 'import X' or 'from X import Y'
+func scanForPythonImports(files []string) []string {
+	deps := make(map[string]bool)
+	// regex: from X import Y  OR  import X
+	// strict import: ^import\s+([a-zA-Z0-9_]+)
+	// from import: ^from\s+([a-zA-Z0-9_]+)\s+import
+
+	importRegex := regexp.MustCompile(`(?m)^(?:import\s+([a-zA-Z0-9_]+)|from\s+([a-zA-Z0-9_]+)\s+import)`)
+
+	stdLib := map[string]bool{
+		"os": true, "sys": true, "math": true, "json": true, "time": true, "random": true,
+		"datetime": true, "re": true, "subprocess": true, "pathlib": true, "typing": true,
+		"collections": true, "itertools": true, "functools": true, "logging": true,
+		"threading": true, "multiprocessing": true, "socket": true, "email": true,
+		"argparse": true, "shutil": true, "glob": true, "pickle": true, "copy": true,
+		"hashlib": true, "base64": true, "uuid": true, "csv": true, "io": true, "requests": false,
+	}
+
+	for _, file := range files {
+		content, err := ioutil.ReadFile(file)
+		if err != nil {
+			continue
+		}
+
+		matches := importRegex.FindAllStringSubmatch(string(content), -1)
+		for _, m := range matches {
+			pkg := ""
+			if m[1] != "" {
+				pkg = m[1]
+			} else if m[2] != "" {
+				pkg = m[2]
+			}
+
+			if pkg != "" && !stdLib[pkg] {
+				deps[pkg] = true
+			}
+		}
+	}
+
+	var result []string
+	for d := range deps {
+		result = append(result, d)
+	}
+	return result
+}
+
+func resolvePythonVersion(pkg string) string {
+	// Try pip show
+	cmd := exec.Command("pip", "show", pkg)
+	out, err := cmd.Output()
+	if err == nil {
+		lines := strings.Split(string(out), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "Version: ") {
+				return strings.TrimSpace(strings.TrimPrefix(line, "Version: "))
+			}
+		}
+	}
+	return "latest"
 }

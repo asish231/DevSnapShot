@@ -14,7 +14,7 @@ type SnapshotMetadata struct {
 	CreatedAt   string   `json:"created_at"` // ISO 8601
 
 	// Environment Requirements
-	Environment EnvironmentConfig `json:"environment"`
+	Environments []EnvironmentConfig `json:"environments"`
 
 	// Execution Steps
 	Commands LifecycleCommands `json:"commands"`
@@ -36,6 +36,10 @@ type EnvironmentConfig struct {
 
 	// Optional: Image to use if Type == "docker"
 	Image string `json:"image,omitempty"`
+
+	// Per-environment commands
+	Setup []string `json:"setup,omitempty"`
+	Run   string   `json:"run,omitempty"`
 }
 
 type LifecycleCommands struct {

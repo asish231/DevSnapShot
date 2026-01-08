@@ -13,22 +13,19 @@ import (
 
 // Run executes the lifecycle commands in the given directory
 func Run(dir string, meta metadata.SnapshotMetadata, manualMode bool) error {
-	fmt.Printf("🚀 Starting sandbox for '%s' (%s)...\n", meta.Name, meta.Environment.Type)
+	fmt.Printf("🚀 Starting sandbox for '%s'...\n", meta.Name)
 	if manualMode {
 		fmt.Println("🎮 Manual Control Mode Active: You will be prompted before each step.")
 	}
 
 	// 0. Env Guard (Check Secrets)
-	// Create template if missing
 	ensureEnvTemplate(dir, meta.RequiredVars)
-	// Try loading .env first
 	loadEnvFile(dir)
-
+	// Validate secrets
 	if len(meta.RequiredVars) > 0 {
 		fmt.Printf("🔐 Checking %d required environment variables...\n", len(meta.RequiredVars))
 		for _, v := range meta.RequiredVars {
 			if os.Getenv(v) == "" {
-				// Prompt
 				fmt.Printf("   ⚠️  Missing Secret: '%s'\n", v)
 				fmt.Printf("      Enter value for %s: ", v)
 				var val string
@@ -43,78 +40,104 @@ func Run(dir string, meta metadata.SnapshotMetadata, manualMode bool) error {
 		}
 	}
 
-	// 1. Setup
-	if len(meta.Commands.Setup) > 0 {
-		fmt.Println("📦 Setting up environment...")
-		for _, cmdStr := range meta.Commands.Setup {
-			// Check for devpack marker
-			if cmdStr == "#DEVPACK_INSTALL" {
-				if err := installFromDevpack(dir, manualMode); err != nil {
-					return fmt.Errorf("devpack install failed: %w", err)
-				}
-				continue
-			}
+	// 1. Iterate Environments
+	for _, env := range meta.Environments {
+		fmt.Printf("\n🌍 Setting up environment: %s (%s)\n", env.Type, env.Version)
 
-			if manualMode {
-				if !promptUser(fmt.Sprintf("Run setup command: '%s'?", cmdStr)) {
-					fmt.Println("   ⏭️  Skipping...")
-					continue
-				}
-			}
+		// A. Pre-flight Check (Runtime Availability)
+		if !checkRuntime(env.Type) {
+			fmt.Printf("   ❌ Compiler/Runtime not found: '%s'. Skipping setup & run.\n", env.Type)
+			continue
+		}
 
-			if err := execute(dir, cmdStr); err != nil {
-				return fmt.Errorf("setup failed: %w", err)
+		// B. Setup
+		if len(env.Setup) > 0 {
+			if manualMode && !promptUser(fmt.Sprintf("Install dependencies for %s?", env.Type)) {
+				fmt.Println("   ⏭️  Skipping setup...")
+			} else {
+				fmt.Println("   📦 Installing dependencies...")
+				for _, cmdStr := range env.Setup {
+					// Check for devpack marker with filename support
+					// Format: #DEVPACK:filename or legacy #DEVPACK_INSTALL
+					if strings.HasPrefix(cmdStr, "#DEVPACK") {
+						filename := "dependencies.devpack" // Default legacy
+						if strings.HasPrefix(cmdStr, "#DEVPACK:") {
+							filename = strings.TrimPrefix(cmdStr, "#DEVPACK:")
+						}
+
+						if err := installFromDevpack(dir, filename, manualMode); err != nil {
+							fmt.Printf("      ⚠️  Devpack install failed: %v\n", err)
+						}
+						continue
+					}
+
+					if err := execute(dir, cmdStr); err != nil {
+						fmt.Printf("      ⚠️  Setup command failed: %v\n", err)
+					}
+				}
 			}
 		}
-	}
 
-	// 2. Run
-	if meta.Commands.Run != "" {
-		if manualMode {
-			if !promptUser(fmt.Sprintf("Start application: '%s'?", meta.Commands.Run)) {
+		// C. Run
+		if env.Run != "" {
+			// In standard mode, we *ask* before running to avoid blocking the shell forever on the first service
+			// But user wants "One-Click".
+			// Compromise: In manual mode we ask. In auto mode, we warn "Starting X..."
+			// BUT: If we have multiple run commands (Node + Python), the first one creates a blocking process?
+			// devsnap is designed for single-process snapshots usually.
+			// For Polyglot, maybe we should run them in background?
+			// For now, let's keep it sequential / blocking.
+
+			if promptUser(fmt.Sprintf("Run start command for %s?\n    CMD: %s", env.Type, env.Run)) {
+				fmt.Printf("▶️  Running: %s\n", env.Run)
+				if err := execute(dir, env.Run); err != nil {
+					return fmt.Errorf("run failed: %w", err)
+				}
+			} else {
 				fmt.Println("   ⏭️  Skipping run command.")
-				return nil
 			}
-		}
-
-		fmt.Printf("▶️  Running: %s\n", meta.Commands.Run)
-		// Assuming generic runner for now (using system shell logic implicitly via execute)
-		if err := execute(dir, meta.Commands.Run); err != nil {
-			return fmt.Errorf("run failed: %w", err)
 		}
 	}
 
 	return nil
 }
 
+func checkRuntime(envType string) bool {
+	var cmd *exec.Cmd
+	switch envType {
+	case "go":
+		cmd = exec.Command("go", "version")
+	case "node", "angular":
+		cmd = exec.Command("node", "-v")
+	case "python":
+		cmd = exec.Command("python", "--version")
+	default:
+		return true // Unknown types assumed present or generic
+	}
+	return cmd.Run() == nil
+}
+
 func execute(dir, cmdStr string) error {
-	// Simple execution: split by space (naive, but works for simple commands)
-	// For better support, we might want to use "sh -c" or "cmd /C"
 	parts := strings.Fields(cmdStr)
 	if len(parts) == 0 {
 		return nil
 	}
 
-	// Windows fallback for npm/python
-	// On Windows, 'npm' is often a .cmd file, so we need to be careful.
-	// exec.Command usually handles PATH lookups well.
-
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin // Interactive support
-
+	cmd.Stdin = os.Stdin
 	fmt.Printf("   [$] %s\n", cmdStr)
 	return cmd.Run()
 }
 
-func installFromDevpack(dir string, manualMode bool) error {
-	devpackPath := filepath.Join(dir, "dependencies.devpack")
+func installFromDevpack(dir, filename string, manualMode bool) error {
+	devpackPath := filepath.Join(dir, filename)
 	// Using generic unmarshal to map since we know the structure
 	content, err := ioutil.ReadFile(devpackPath)
 	if err != nil {
-		fmt.Println("   ⚠️ Could not find dependencies.devpack")
+		fmt.Printf("   ⚠️ Could not find %s\n", filename)
 		return nil
 	}
 
@@ -135,6 +158,8 @@ func installFromDevpack(dir string, manualMode bool) error {
 		return installGoDeps(dir, pack.Dependencies, manualMode)
 	} else if pack.Type == "node" || pack.Type == "angular" {
 		return installNodeDeps(dir, pack.Dependencies, manualMode)
+	} else if pack.Type == "python" {
+		return installPythonDeps(dir, pack.Dependencies, manualMode)
 	}
 
 	return nil
@@ -196,6 +221,34 @@ func installGoDeps(dir string, deps map[string]string, manualMode bool) error {
 		}
 	}
 	return nil
+}
+
+func installPythonDeps(dir string, deps map[string]string, manualMode bool) error {
+	// pip install pkg==ver pkg2==ver2
+	args := []string{"install"}
+
+	for pkg, ver := range deps {
+		if ver == "latest" || ver == "" {
+			args = append(args, pkg)
+		} else {
+			args = append(args, fmt.Sprintf("%s==%s", pkg, ver))
+		}
+	}
+
+	cmdStr := fmt.Sprintf("pip %s", strings.Join(args, " "))
+	if manualMode {
+		if !promptUser(fmt.Sprintf("Install Python dependencies (%d packages)?\n   '%s'", len(deps), cmdStr)) {
+			fmt.Println("   ⏭️  Skipping dependency installation...")
+			return nil
+		}
+	}
+
+	fmt.Printf("   📦 Installing Python imports from devpack: %v\n", args[1:])
+	cmd := exec.Command("pip", args...)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // promptUser asks for confirmation (Y/n)
