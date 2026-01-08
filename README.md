@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./assets/logo.png" alt="DevSnapshot Mascot" width="180">
+  <br>
+
 ```text
   ____             ____                        _           _
  |  _ \  _____   _/ ___| _ __   __ _ _ __  ___| |__   ___ | |_
@@ -6,6 +10,8 @@
  |____/ \___| \_/  |____/|_| |_|\__,_| .__/|___/_| |_|\___/ \__|
                                      |_|
 ```
+
+</div>
 
 # DevSnapshot 📸
 
