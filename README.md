@@ -259,6 +259,38 @@ This ensures **Zero Pollution** on your main machine and **100% Reproducibility*
 
 ---
 
+---
+
+## 🛣️ Roadmap & Vision
+
+We are building the future of **Portable Development Environments**. Our goal is to make "it works on my machine" a phrase of the past.
+
+### 🌟 The "Why" (Philosophy)
+
+Modern development is too fragmented. Docker is heavy. Nix is complex.
+DevSnapshot bridges the gap: **Native performance with Container-like reproducibility.**
+
+### 📍 Current Focus (v1.0)
+
+- ✅ Core Polyglot support (Node, Go, Python, Rust, PHP, Java)
+- ✅ Intelligent "Sherlock" detection
+- ✅ Cross-platform binaries
+
+### 🔭 Future Horizons (v2.0+)
+
+- [ ] **Cloud Snapshots**: `devsnap push/pull` to S3 or GitHub Packages.
+- [ ] **IDE Integration**: VS Code extension to auto-load snapshots.
+- [ ] **Deep Containerization**: Optional lightweight isolation using OS-native features (verify/jail).
+- [ ] **Plugin System**: Allow community to write detectors for new languages (Ruby, Haskell, Swift).
+- [ ] **GUI Wizard**: A desktop app for visual snapshot management.
+
+### 📊 Performance Goals
+
+- **Startup Time**: < 500ms for cached snapshots.
+- **Archive Size**: < 10MB for typical microservices (code-only).
+
+---
+
 ## 🤝 Contributing
 
 This is a completely **Open Source** project. We welcome contributions from the community!
