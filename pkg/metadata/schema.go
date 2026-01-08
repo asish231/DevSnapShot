@@ -19,6 +19,9 @@ type SnapshotMetadata struct {
 	// Execution Steps
 	Commands LifecycleCommands `json:"commands"`
 
+	// Secrets / Config
+	RequiredVars []string `json:"required_vars,omitempty"`
+
 	// Files to include (optional explicit list, or pattern)
 	// If empty, defaults to all files in archive
 	Manifest []string `json:"manifest,omitempty"`

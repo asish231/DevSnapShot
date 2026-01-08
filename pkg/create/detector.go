@@ -13,11 +13,32 @@ import (
 )
 
 // DetectProject inspects the files and determins the environment configuration
-func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleCommands, string) {
+func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleCommands, string, []string) {
 	// Defaults
 	env := metadata.EnvironmentConfig{Type: "generic"}
 	cmds := metadata.LifecycleCommands{}
 	name := filepath.Base(root)
+	var requiredVars []string
+
+	// Global Scan for Code Files (for Env Guard & Sherlock)
+	var codeFiles []string
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if info.Name() == "node_modules" || info.Name() == ".git" || info.Name() == "dist" || info.Name() == "build" || info.Name() == "vendor" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".js" || ext == ".ts" || ext == ".jsx" || ext == ".tsx" || ext == ".go" || ext == ".py" {
+			codeFiles = append(codeFiles, path)
+		}
+		return nil
+	})
+	requiredVars = removeDuplicates(scanForEnvVars(codeFiles))
 
 	// 1. Check for Angular
 	if exists(filepath.Join(root, "angular.json")) {
@@ -31,7 +52,7 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 		if v := resolveNodeVersion(root, "@angular/core"); v != "" {
 			env.Version = v
 		}
-		return env, cmds, name
+		return env, cmds, name, requiredVars
 	}
 
 	// 2. Check for Node.js (package.json)
@@ -41,7 +62,7 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 		cmds.Setup = []string{"npm install"}
 		cmds.Run = "npm start"
 		cmds.Test = "npm test"
-		return env, cmds, name
+		return env, cmds, name, requiredVars
 	}
 
 	// 3. Check for Go (go.mod)
@@ -56,29 +77,11 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 		cmds.Setup = []string{"go mod download"}
 		cmds.Run = "go run ."
 		cmds.Test = "go test ./..."
-		return env, cmds, name
+		return env, cmds, name, requiredVars
 	}
 
 	// 4. Sherlock Mode: No manifest files found!
-	// Scan recursively for code files to guess the environment
-	var codeFiles []string
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			// Skip common ignore dirs
-			if info.Name() == "node_modules" || info.Name() == ".git" || info.Name() == "dist" || info.Name() == "build" || info.Name() == "vendor" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".js" || ext == ".ts" || ext == ".jsx" || ext == ".tsx" || ext == ".go" {
-			codeFiles = append(codeFiles, path)
-		}
-		return nil
-	})
+	// (codeFiles is already populated above)
 
 	if len(codeFiles) > 0 {
 		fmt.Printf("   🕵️  Sherlock Mode: Found %d source files. Analyzing...\n", len(codeFiles))
@@ -111,7 +114,7 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 			}
 
 			cmds.Run = "go run ."
-			return env, cmds, name
+			return env, cmds, name, requiredVars
 		}
 
 		// Check for Node/JS files
@@ -141,7 +144,7 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 			} else {
 				cmds.Run = "node " + filepath.Base(codeFiles[0])
 			}
-			return env, cmds, name
+			return env, cmds, name, requiredVars
 		}
 	}
 
@@ -155,10 +158,10 @@ func DetectProject(root string) (metadata.EnvironmentConfig, metadata.LifecycleC
 		} else {
 			cmds.Run = "python main.py"
 		}
-		return env, cmds, name
+		return env, cmds, name, requiredVars
 	}
 
-	return env, cmds, name
+	return env, cmds, name, requiredVars
 }
 
 // createDevpack writes the .devpack file
@@ -368,7 +371,72 @@ func isBuiltinModule(name string) bool {
 	return builtins[name]
 }
 
+// exists checks if a file or directory exists
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// --- Env Guard Logic ---
+
+func scanForEnvVars(files []string) []string {
+	vars := make(map[string]bool)
+
+	// regexes
+	// Node: process.env.API_KEY or process.env['API_KEY']
+	nodeRegex := regexp.MustCompile(`process\.env\.([A-Z_0-9]+)|process\.env\['([A-Z_0-9]+)'\]`)
+	// Go: os.Getenv("API_KEY") or os.LookupEnv("API_KEY")
+	goRegex := regexp.MustCompile(`os\.(?:Getenv|LookupEnv)\("([A-Z_0-9]+)"\)`)
+	// Python: os.environ.get("API_KEY") or os.getenv("API_KEY") or os.environ["API_KEY"]
+	pyRegex := regexp.MustCompile(`os\.(?:environ\.get|getenv|environ\[")["']([A-Z_0-9]+)["']`)
+
+	for _, file := range files {
+		content, err := ioutil.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		str := string(content)
+
+		for _, m := range nodeRegex.FindAllStringSubmatch(str, -1) {
+			if len(m) > 1 && m[1] != "" {
+				vars[m[1]] = true
+			}
+			if len(m) > 2 && m[2] != "" {
+				vars[m[2]] = true
+			}
+		}
+		for _, m := range goRegex.FindAllStringSubmatch(str, -1) {
+
+			if len(m) > 1 {
+				vars[m[1]] = true
+			}
+		}
+		for _, m := range pyRegex.FindAllStringSubmatch(str, -1) {
+			if len(m) > 1 {
+				vars[m[1]] = true
+			}
+		}
+	}
+
+	var result []string
+	for v := range vars {
+		// Filter out common system ones if needed
+		if v != "NODE_ENV" && v != "PATH" {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func removeDuplicates(elements []string) []string {
+	encountered := map[string]bool{}
+	result := []string{}
+
+	for v := range elements {
+		if encountered[elements[v]] == false {
+			encountered[elements[v]] = true
+			result = append(result, elements[v])
+		}
+	}
+	return result
 }

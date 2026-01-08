@@ -18,6 +18,26 @@ func Run(dir string, meta metadata.SnapshotMetadata, manualMode bool) error {
 		fmt.Println("🎮 Manual Control Mode Active: You will be prompted before each step.")
 	}
 
+	// 0. Env Guard (Check Secrets)
+	if len(meta.RequiredVars) > 0 {
+		fmt.Printf("🔐 Checking %d required environment variables...\n", len(meta.RequiredVars))
+		for _, v := range meta.RequiredVars {
+			if os.Getenv(v) == "" {
+				// Prompt
+				fmt.Printf("   ⚠️  Missing Secret: '%s'\n", v)
+				fmt.Printf("      Enter value for %s: ", v)
+				var val string
+				fmt.Scanln(&val)
+				if val != "" {
+					os.Setenv(v, strings.TrimSpace(val))
+					fmt.Printf("      ✅ Set %s for this session.\n", v)
+				} else {
+					fmt.Printf("      ⚠️  Skipped %s (App might fail)\n", v)
+				}
+			}
+		}
+	}
+
 	// 1. Setup
 	if len(meta.Commands.Setup) > 0 {
 		fmt.Println("📦 Setting up environment...")

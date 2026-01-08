@@ -70,8 +70,11 @@ func handleCreate(args []string) {
 
 	// 2. Detect Project Type
 	fmt.Print("   • Detecting... ")
-	env, cmds, name := create.DetectProject(wd)
+	env, cmds, name, reqVars := create.DetectProject(wd)
 	fmt.Printf("Detected %s (%s).\n", name, env.Type)
+	if len(reqVars) > 0 {
+		fmt.Printf("   🔐 Detected %d required secrets (e.g. %s)\n", len(reqVars), reqVars[0])
+	}
 
 	// 3. Metadata
 	meta := metadata.SnapshotMetadata{
@@ -80,6 +83,7 @@ func handleCreate(args []string) {
 		CreatedAt:     time.Now().Format(time.RFC3339),
 		Environment:   env,
 		Commands:      cmds,
+		RequiredVars:  reqVars,
 	}
 
 	// 4. Archive
