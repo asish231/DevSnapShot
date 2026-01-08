@@ -19,6 +19,11 @@ func Run(dir string, meta metadata.SnapshotMetadata, manualMode bool) error {
 	}
 
 	// 0. Env Guard (Check Secrets)
+	// Create template if missing
+	ensureEnvTemplate(dir, meta.RequiredVars)
+	// Try loading .env first
+	loadEnvFile(dir)
+
 	if len(meta.RequiredVars) > 0 {
 		fmt.Printf("🔐 Checking %d required environment variables...\n", len(meta.RequiredVars))
 		for _, v := range meta.RequiredVars {
@@ -200,4 +205,70 @@ func promptUser(question string) bool {
 	fmt.Scanln(&response) // Wait for enter
 	response = strings.ToLower(strings.TrimSpace(response))
 	return response == "" || response == "y" || response == "yes"
+}
+
+func loadEnvFile(dir string) {
+	envPath := filepath.Join(dir, ".env")
+	content, err := ioutil.ReadFile(envPath)
+	if err != nil {
+		return // No .env file, ignore
+	}
+
+	fmt.Println("📄 Found .env file, loading variables...")
+	lines := strings.Split(string(content), "\n")
+	loaded := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			// Basic cleanup of quotes
+			val = strings.Trim(val, `"'`)
+
+			// Only set if not already set (optional, but standard behavior usually overrides)
+			os.Setenv(key, val)
+			loaded++
+		}
+	}
+	if loaded > 0 {
+		fmt.Printf("   ✅ Loaded %d variables from .env\n", loaded)
+	}
+}
+
+func ensureEnvTemplate(dir string, required []string) {
+	if len(required) == 0 {
+		return
+	}
+	envPath := filepath.Join(dir, ".env")
+
+	// Read existing content
+	existing := ""
+	if content, err := ioutil.ReadFile(envPath); err == nil {
+		existing = string(content)
+	}
+
+	f, err := os.OpenFile(envPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	added := 0
+	for _, v := range required {
+		// Simple check if key exists in file
+		// Note: robust parsing is better, but this suffices for "adding missing keys"
+		if !strings.Contains(existing, v+"=") {
+			if _, err := f.WriteString(fmt.Sprintf("\n%s=", v)); err == nil {
+				added++
+			}
+		}
+	}
+
+	if added > 0 {
+		fmt.Printf("   📄 Added %d missing keys to .env (values are empty)\n", added)
+	}
 }
