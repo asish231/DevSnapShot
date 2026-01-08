@@ -97,10 +97,25 @@ func handleCreate(args []string) {
 
 func handleStart(args []string) {
 	if len(args) < 1 {
-		fmt.Println("Usage: devsnap start <snapshot-file>")
+		fmt.Println("Usage: devsnap start <snapshot-file> [--manual|-m]")
 		os.Exit(1)
 	}
-	snapshotFile := args[0]
+
+	var snapshotFile string
+	manualMode := false
+
+	for _, arg := range args {
+		if arg == "--manual" || arg == "-m" {
+			manualMode = true
+		} else {
+			snapshotFile = arg
+		}
+	}
+
+	if snapshotFile == "" {
+		fmt.Println("Usage: devsnap start <snapshot-file> [--manual|-m]")
+		os.Exit(1)
+	}
 
 	// 1. Unpack
 	// Use a local sandbox directory for visibility, as requested
@@ -117,7 +132,7 @@ func handleStart(args []string) {
 	}
 
 	// 2. Run
-	err = start.Run(sandboxDir, meta)
+	err = start.Run(sandboxDir, meta, manualMode)
 	if err != nil {
 		fmt.Printf("Error running snapshot: %v\n", err)
 		os.Exit(1)

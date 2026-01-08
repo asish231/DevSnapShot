@@ -66,13 +66,13 @@ devsnap create
 ```
 
 **🕵️ Sherlock Mode (Advanced Detection)**
-DevSnapshot features an intelligent "Sherlock" engine that works even when `package.json` is missing (e.g., partial code snippets):
+DevSnapshot features an intelligent "Sherlock" engine that works even when `package.json` or `go.mod` is missing:
 
-1.  **Recursively Scans** for `.js`, `.ts`, `.jsx`, `.tsx` files.
+1.  **Recursively Scans** for code files (`.js`, `.ts`, `.go`, etc.).
 2.  **Identifies Dependencies** by reading `import` and `require` statements.
 3.  **Resolves Versions** using a **Hybrid Strategy**:
-    - **Source Truth**: Checks `node_modules` for the exact installed version.
-    - **CLI Check**: If missing, runs `tool --version` (matches system environment).
+    - **Source Truth**: Checks `node_modules` or `go.mod` for exact versions.
+    - **CLI Check**: If missing, runs `npm list` or `go list`.
     - **Fallback**: Defaults to `latest`.
 4.  **Generates `.devpack`**: Creates a `dependencies.devpack` file to lock this environment.
 
@@ -93,6 +93,10 @@ devsnap inspect my-project.devsnap
 
 Unpacks to a safe sandbox (`.devsnap_sandbox`) and launches the environment.
 
+#### Auto Mode (Default)
+
+automatically installs dependencies and starts the app.
+
 ```powershell
 devsnap start my-project.devsnap
 # 🚀 Starting sandbox...
@@ -100,16 +104,26 @@ devsnap start my-project.devsnap
 # ▶️ Running: npx vite
 ```
 
+#### Manual Control Mode (`--manual`)
+
+Gives you full control over every step.
+
+```powershell
+devsnap start my-project.devsnap --manual
+# [?] Install Node dependencies (15 packages)? (Y/n):
+```
+
 ---
 
 ## 🌍 Supported Environments
 
-| Language               | Manifest           | Status      | Notes                                                                   |
-| :--------------------- | :----------------- | :---------- | :---------------------------------------------------------------------- |
-| **Node.js**            | `package.json`     | ✅ Stable   | Works for all frameworks (React, Angular, Vue, Next, etc.)              |
-| **Python**             | `requirements.txt` | ✅ Stable   | Standard pip install & run                                              |
-| **Go**                 | `go.mod`           | ✅ Stable   | Standard go run                                                         |
-| **Sherlock (Generic)** | _Missing_          | 🚧 **Beta** | Optimized for **Vite** & **Generic JS**. Angular detection coming soon. |
+| Language               | Manifest           | Status      | Notes                                                    |
+| :--------------------- | :----------------- | :---------- | :------------------------------------------------------- |
+| **Node.js**            | `package.json`     | ✅ Stable   | Works for all frameworks (React, Vue, Next, etc.)        |
+| **Angular**            | `angular.json`     | ✅ Stable   | Auto-detects Angular & resolves core version             |
+| **Go**                 | `go.mod`           | ✅ Stable   | Parses `go.mod` or scans imports + `go list` restoration |
+| **Python**             | `requirements.txt` | ✅ Stable   | Standard pip install & run                               |
+| **Sherlock (Generic)** | _Missing_          | 🚀 **Live** | Smart detection for Node & Go projects without manifests |
 
 > **Note**: Sherlock Mode is currently in a **Testing Phase**. While it often works like magic, always verify the generated `.devpack` for complex projects.
 
