@@ -44,8 +44,24 @@ DevSnapshot is a single `.exe` file. Run it from anywhere.
 
 ### 1. Build from Source
 
+**Windows**:
+
 ```powershell
 go build -o devsnap.exe
+```
+
+**Mac (Apple Silicon)**:
+
+```bash
+GOOS=darwin GOARCH=arm64 go build -o devsnap-mac-arm64
+chmod +x devsnap-mac-arm64
+```
+
+**Linux**:
+
+```bash
+GOOS=linux GOARCH=amd64 go build -o devsnap-linux
+chmod +x devsnap-linux
 ```
 
 ### 2. Add to PATH (Global Access)
