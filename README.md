@@ -15,7 +15,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status](https://img.shields.io/badge/Status-Beta-orange.svg)]()
-[![SafarNow Innovation](https://img.shields.io/badge/SafarNow-Innovation-blue.svg)](https://www.safarnow.in)
+[![SafarNow Innovation](https://img.shields.io/badge/SafarNow-Innovation-blue.svg)](https://safarnow.in/)
 
 DevSnapshot is a tiny, portable, **open-source** tool that makes onboarding as simple as "download + run". Instead of telling contributors to "install dependencies" and hope they match, you share a single `.devsnap` file.
 
