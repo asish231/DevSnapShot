@@ -313,6 +313,51 @@ This is a completely **Open Source** project. We welcome contributions from the 
 **Contact**:
 📧 [asishkksharma@gmail.com](mailto:asishkksharma@gmail.com)
 
-## 📄 License
+## 📄 License & Usage Policy
 
-MIT
+**DevSnapshot** is proudly **Open Source** under the **[MIT License](./LICENSE)**.
+
+### 🔓 Why MIT? (The "Openness" Philosophy)
+
+We believe developer tools should be foundational infrastructure, accessible to everyone. By choosing MIT, we ensure:
+
+1.  **Zero Friction**: You can use this tool in personal, academic, or **commercial** projects without asking for permission.
+2.  **Freedom to Fork**: If you need a custom version for your enterprise, you are free to modify the source code.
+3.  **Community Ownership**: No vendor lock-in. If we stop maintaining it, the community can take over.
+
+### ✅ What You CAN Do
+
+- Use this tool for **Commercial** purposes (e.g., inside your startup).
+- Modify the source code to fit your needs.
+- Distribute copies of the tool to your team.
+- Charge for services that use this tool (e.g., "DevOps consulting using DevSnapshot").
+
+### ❌ What You CANNOT Do
+
+- Hold the authors liable for any damages (software is provided "as is").
+- Remove the original copyright notice and license text from the source code.
+
+> **In summary**: As long as you keep the copyright header, you can do whatever you want with this code. Build, break, and scale. 🚀
+
+---
+
+## ⚠️ Digital Signatures & Liability Disclaimer
+
+Please note that the provided binaries are currently **NOT digitally signed**.
+
+- **Why?** Code signing certificates are costly for early-stage open-source projects. We plan to implement them in future releases.
+- **Implication**: Your OS (Windows SmartScreen, macOS Gatekeeper) might warn you that the "Publisher is unknown." using the binaries.
+- **Liability**: **The author (Asish Kumar Sharma) and SafarNow are NOT responsible for any damages** caused by the use of this software. You use it entirely at your own risk.
+
+> **Paranoid?** That's good! Since this is open source, you don't have to trust our binaries. You can consistently audit the code and **Build from Source** (see Installation).
+
+---
+
+## 💌 A Message from the Team
+
+> _"We hope DevSnapshot becomes the most credible tool in your workflow. We believe that **the more problems we face, the better we get**."_
+
+This tool is designed to be **super easy**. If you face any issues or have needs, please **contact the author**. We are building this for you.
+
+All the best,
+**The SafarNow Team**
