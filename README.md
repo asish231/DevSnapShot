@@ -115,15 +115,51 @@ devsnap start my-project.devsnap --manual
 
 ---
 
+## 🧙‍♂️ Polyglot & Wizard Mode
+
+DevSnapshot now supports **Multi-Language Projects** (e.g., a Python backend with a Node.js frontend).
+
+### 1. Unified Detection
+
+It scans your entire project and detects **ALL** supported environments simultaneously:
+
+```text
+Detected polyglot-project [node (>=18.0.0), python (3.10)]
+```
+
+### 2. Interactive Wizard 🪄
+
+When running `devsnap start` (especially with `--manual`), the **Interactive Wizard** guides you through the setup for _each_ environment sequentially:
+
+1.  **Runtime Check**: Verifies you have the necessary tools (e.g., checks for `python` and `node`).
+2.  **Sequential Install**: Prompts to install Node dependencies, then Python dependencies.
+3.  **Controlled Launch**: Allows you to start services one by one.
+
+---
+
+## 🔐 EnvGuard (Secrets Management)
+
+Never accidentally leak API keys again. DevSnapshot automatically scans your code for environment variable usage (e.g., `process.env.API_KEY`, `os.getenv("SECRET")`).
+
+1.  **Detection**: Finds all required keys during `create`.
+2.  **Exclusion**: **Ignoring** local `.env` files to prevent leaks.
+3.  **Restoration**:
+    - Generates a template `.env` in the sandbox.
+    - **Prompts** you to enter missing secrets securely at runtime.
+    - Loads them into the process for that session only.
+
+---
+
 ## 🌍 Supported Environments
 
-| Language               | Manifest           | Status      | Notes                                                    |
-| :--------------------- | :----------------- | :---------- | :------------------------------------------------------- |
-| **Node.js**            | `package.json`     | ✅ Stable   | Works for all frameworks (React, Vue, Next, etc.)        |
-| **Angular**            | `angular.json`     | ✅ Stable   | Auto-detects Angular & resolves core version             |
-| **Go**                 | `go.mod`           | ✅ Stable   | Parses `go.mod` or scans imports + `go list` restoration |
-| **Python**             | `requirements.txt` | ✅ Stable   | Standard pip install & run                               |
-| **Sherlock (Generic)** | _Missing_          | 🚀 **Live** | Smart detection for Node & Go projects without manifests |
+| Language               | Manifest           | Status      | Notes                                                            |
+| :--------------------- | :----------------- | :---------- | :--------------------------------------------------------------- |
+| **Node.js**            | `package.json`     | ✅ Stable   | Works for all frameworks (React, Vue, Next, etc.)                |
+| **Angular**            | `angular.json`     | ✅ Stable   | Auto-detects Angular & resolves core version                     |
+| **Go**                 | `go.mod`           | ✅ Stable   | Parses `go.mod` or scans imports + `go list` restoration         |
+| **Python**             | `requirements.txt` | ✅ Stable   | Standard pip install & run                                       |
+| **Sherlock (Generic)** | _Missing_          | 🚀 **Live** | Smart detection for Node, Python & Go projects without manifests |
+| **Polyglot**           | _Mixed_            | ✨ **New**  | Supports **Node + Python + Go** in the same repo                 |
 
 > **Note**: Sherlock Mode is currently in a **Testing Phase**. While it often works like magic, always verify the generated `.devpack` for complex projects.
 
